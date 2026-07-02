@@ -2,7 +2,7 @@
   "name": "claude-switcher",
   "displayName": "Claude Switcher",
   "description": "Browse and resume Claude Code conversations from VS Code",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "publisher": "neolitec",
   "author": "neolitec",
@@ -63,25 +63,45 @@
         "command": "claudeSwitcher.createSession",
         "title": "Claude Switcher: Start New Session",
         "icon": "$(add)"
+      },
+      {
+        "command": "claudeSwitcher.showHistory",
+        "title": "Claude Switcher: Expanded View (show history)",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "claudeSwitcher.hideHistory",
+        "title": "Claude Switcher: Simplified View",
+        "icon": "$(list-flat)"
       }
     ],
     "menus": {
       "view/title": [
         {
+          "command": "claudeSwitcher.showHistory",
+          "when": "view == claudeSwitcher.sessions && !claudeSwitcher.historyVisible",
+          "group": "navigation@1"
+        },
+        {
+          "command": "claudeSwitcher.hideHistory",
+          "when": "view == claudeSwitcher.sessions && claudeSwitcher.historyVisible",
+          "group": "navigation@1"
+        },
+        {
           "command": "claudeSwitcher.refresh",
           "when": "view == claudeSwitcher.sessions",
-          "group": "navigation"
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [
         {
           "command": "claudeSwitcher.activateWorktreeLatest",
-          "when": "view == claudeSwitcher.sessions && viewItem == worktree",
+          "when": "view == claudeSwitcher.sessions && viewItem =~ /^worktree(-root)?$/",
           "group": "inline"
         },
         {
           "command": "claudeSwitcher.createSession",
-          "when": "view == claudeSwitcher.sessions && viewItem == worktree-empty",
+          "when": "view == claudeSwitcher.sessions && (viewItem =~ /-root$/ || viewItem == worktree-empty)",
           "group": "inline"
         },
         {

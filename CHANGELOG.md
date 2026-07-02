@@ -5,13 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.0] - 2026-07-02
 
 ### Added
 
 - Initial release: Explorer tree view listing Claude Code sessions grouped by project and git worktree.
-- Resume a session in an integrated terminal (`claude --resume <id>`), reusing an already-open terminal for that session when one exists.
-- Start a brand-new session on worktrees with no Claude Code history yet.
+- Resume a session in an integrated terminal (`claude --resume <id>`), reusing the worktree's already-open terminal when one exists — matched across window reloads via env tag, shell-integration cwd, or deterministic terminal name.
+- The "+" action always starts a brand-new `claude` session for the worktree; empty worktrees also accept a double-click to start one.
+- Simplified/expanded view toggle in the header (persisted): simplified shows one row per project/worktree with only its latest session; expanded reveals the full Project → Worktree → Session nesting with a "Previous sessions" node.
 - Read-only Markdown preview of a session's transcript.
-- Root worktree gets a distinct icon/label; open workspace folders and active sessions are highlighted.
-- Unit test suite (`node:test`) for the git-worktree and session-parsing logic.
+- Worktrees under `<repo>/.claude/worktrees/` nest inside their project; hand-made external worktrees appear as their own top-level project only when they contain sessions.
+- Highlighting: the focused terminal's session gets a large green dot and follows the active terminal; other live sessions get a small green dot. Root worktree gets a home icon; green (live terminal) / blue (project with no terminal) / grey (empty) colour coding documented in the README.
+- Auto-refresh via file-system watchers on `~/.claude/projects` (sessions) and each repo's `.git/worktrees` (worktrees added/removed).
+- Unit test suite (`node:test`, ~93% line coverage of the pure logic) covering session parsing and transcript rendering, git-worktree parsing (incl. a real-repo integration test), project/worktree grouping, terminal matching, worktree colour, and double-click detection.

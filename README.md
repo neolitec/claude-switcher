@@ -7,12 +7,28 @@ It scans `~/.claude/projects/`, groups sessions by git repository and worktree, 
 ## Features
 
 - **Project → Worktree → Session tree.** Sessions are discovered from `~/.claude/projects/` and grouped by the git repository (and worktree) they were run in — no need to have the folder open in VS Code first.
-- **Latest session surfaced, older ones tucked away.** Each worktree shows only its most recent session; earlier ones live under a collapsible "Previous sessions" node.
+- **Simplified vs expanded view.** A toggle in the view header (remembered across reloads) switches between two layouts:
+  - **Simplified (default):** every project/worktree is a single clickable row showing only its **latest** session (click resumes it). A project only expands to reveal extra `.claude/worktrees` worktrees — never to list older sessions.
+  - **Expanded:** the full Project → Worktree → Session nesting, where each worktree exposes its latest session plus a collapsible "Previous sessions" node.
 - **One click to resume.** Clicking a session opens (or reveals) an integrated terminal running `claude --resume <id>`, and adds the worktree to your workspace if it isn't open yet.
 - **Start a fresh session.** Worktrees with no Claude history yet show up dimmed with a "+" action that opens a terminal and runs `claude` there.
-- **Active session highlighting.** A session currently running in a terminal is marked with a green dot, even across a VS Code window reload (workspace-folder changes force one — see [Architecture notes](#architecture-notes)).
+- **Active session highlighting.** A session running in a terminal is marked with a green dot; the one whose terminal you're currently looking at is highlighted more strongly and follows you as you switch terminals (see [Colour coding](#colour-coding)). This survives a VS Code window reload (workspace-folder changes force one — see [Architecture notes](#architecture-notes)).
 - **Read-only preview.** Right-click → "Preview Session" renders a session's transcript as Markdown without touching any terminal.
 - **Root worktree marker.** The repo's main worktree gets a distinct home icon and a "· root" label so it's never confused with a linked worktree.
+
+## Colour coding
+
+Icon colours in the tree encode state at a glance:
+
+| Colour / icon              | Where                         | Meaning                                                                                                                      |
+| -------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 🟢 Green, large filled dot | Session                       | This session's terminal is the one **currently focused** — the terminal you're looking at. It moves as you switch terminals. |
+| 🟢 Green, small filled dot | Session                       | The session has a **live terminal running** `claude`, but it isn't the focused one.                                          |
+| 🟢 Green                   | Worktree (home / branch icon) | The worktree has a **live `claude` terminal** running.                                                                       |
+| 🔵 Blue                    | Worktree (home icon)          | A **project root with no terminal open** — the everyday "here's a project you can jump into" state.                          |
+| ⚪ Dimmed / grey           | Worktree (branch icon)        | An **empty worktree** with no sessions and no terminal (e.g. a freshly created `.claude/worktrees/` worktree).               |
+
+Worktrees created by Claude Code live under `<repo>/.claude/worktrees/` and are nested inside their project. Worktrees you create elsewhere by hand are shown as their own top-level project — but only if they already contain sessions; otherwise they're ignored.
 
 ## Requirements
 
@@ -48,8 +64,8 @@ npm run package   # produces a .vsix via @vscode/vsce, does not publish
 
 ## Architecture notes
 
-- `src/claudeSessionService.ts` and `src/gitService.ts` have no dependency on the `vscode` module and are covered by unit tests in `src/test/`. `src/sessionsTreeProvider.ts`, `src/extension.ts`, and `src/terminalRegistry.ts` are thin VS Code API glue, exercised manually via the Extension Development Host.
-- Adding a worktree folder to a single-root VS Code window converts it into a multi-root workspace, which VS Code implements by fully reloading the extension host. Any extension-owned in-memory state is lost in that reload. To survive it, "which session has an active terminal" is _not_ tracked in memory — it's derived by tagging each terminal's environment (`terminalRegistry.ts`) and querying `vscode.window.terminals` live.
+- The `vscode`-free modules hold the logic worth testing and are covered by the `src/test/` unit suite: `claudeSessionService.ts` (session parsing), `gitService.ts` (`git worktree list` parsing), `projectGrouping.ts` (project/worktree layout), `terminalMatching.ts` (terminal ↔ worktree matching), and `doubleClick.ts` (double-click timing). The modules that import `vscode` (`sessionsTreeProvider.ts`, `extension.ts`, `terminalRegistry.ts`, the watchers) are thin API glue over those, exercised manually via the Extension Development Host.
+- Adding a worktree folder to a single-root VS Code window converts it into a multi-root workspace, which VS Code implements by fully reloading the extension host. Any extension-owned in-memory state is lost in that reload. So "which terminal belongs to which worktree" is _not_ tracked in memory — it's rederived from live terminal signals (env tag, shell-integration cwd, or deterministic name; see `terminalMatching.ts`), each surviving a different kind of reload.
 
 ## License
 
