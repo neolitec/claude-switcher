@@ -1,0 +1,122 @@
+{
+  "name": "claude-switcher",
+  "displayName": "Claude Switcher",
+  "description": "Browse and resume Claude Code conversations from VS Code",
+  "version": "0.0.1",
+  "private": true,
+  "publisher": "neolitec",
+  "author": "neolitec",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/neolitec/claude-switcher.git"
+  },
+  "bugs": {
+    "url": "https://github.com/neolitec/claude-switcher/issues"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "anthropic",
+    "worktree",
+    "terminal"
+  ],
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=18"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "views": {
+      "explorer": [
+        {
+          "id": "claudeSwitcher.sessions",
+          "name": "Claude Sessions"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "claudeSwitcher.refresh",
+        "title": "Claude Switcher: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "claudeSwitcher.previewSession",
+        "title": "Claude Switcher: Preview Session"
+      },
+      {
+        "command": "claudeSwitcher.activateSession",
+        "title": "Claude Switcher: Resume Session",
+        "icon": "$(play)"
+      },
+      {
+        "command": "claudeSwitcher.activateWorktreeLatest",
+        "title": "Claude Switcher: Resume Latest Session",
+        "icon": "$(play)"
+      },
+      {
+        "command": "claudeSwitcher.createSession",
+        "title": "Claude Switcher: Start New Session",
+        "icon": "$(add)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "claudeSwitcher.refresh",
+          "when": "view == claudeSwitcher.sessions",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "claudeSwitcher.activateWorktreeLatest",
+          "when": "view == claudeSwitcher.sessions && viewItem == worktree",
+          "group": "inline"
+        },
+        {
+          "command": "claudeSwitcher.createSession",
+          "when": "view == claudeSwitcher.sessions && viewItem == worktree-empty",
+          "group": "inline"
+        },
+        {
+          "command": "claudeSwitcher.activateSession",
+          "when": "view == claudeSwitcher.sessions && viewItem == session",
+          "group": "inline"
+        },
+        {
+          "command": "claudeSwitcher.previewSession",
+          "when": "view == claudeSwitcher.sessions && viewItem == session",
+          "group": "1_preview"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "lint": "eslint src",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test dist/test/**/*.test.js",
+    "pretest": "npm run compile",
+    "package": "vsce package --no-dependencies",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.9.2",
+    "eslint": "^10.6.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.4",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.62.1"
+  }
+}

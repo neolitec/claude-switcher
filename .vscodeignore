@@ -1,0 +1,15 @@
+.vscode/**
+.github/**
+src/**
+dist/test/**
+node_modules/**
+.gitignore
+.prettierrc.json
+.prettierignore
+.eslintcache
+eslint.config.mjs
+tsconfig.json
+*.map
+**/*.test.js
+CHANGELOG.md
+.nvmrc
