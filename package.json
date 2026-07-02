@@ -123,7 +123,7 @@
     "lint": "eslint src",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --test dist/test/**/*.test.js",
+    "test": "node --test dist/test/*.test.js",
     "pretest": "npm run compile",
     "package": "vsce package --no-dependencies",
     "vscode:prepublish": "npm run compile"
