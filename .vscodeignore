@@ -1,7 +1,7 @@
 .vscode/**
 .github/**
 src/**
-dist/test/**
+out/**
 node_modules/**
 .gitignore
 .prettierrc.json
@@ -9,6 +9,7 @@ node_modules/**
 .eslintcache
 eslint.config.mjs
 tsconfig.json
+tsconfig.test.json
 *.map
 **/*.test.js
 CHANGELOG.md

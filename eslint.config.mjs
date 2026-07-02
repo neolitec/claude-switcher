@@ -4,14 +4,16 @@ import eslintConfigPrettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', '.vscode-test/**'],
+    ignores: ['dist/**', 'out/**', 'node_modules/**', '.vscode-test/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
     languageOptions: {
       parserOptions: {
-        project: './tsconfig.json',
+        // tsconfig.test.json includes all of src/** (tests included); the base
+        // tsconfig excludes src/test so tests wouldn't be in any project.
+        project: './tsconfig.test.json',
       },
     },
     rules: {

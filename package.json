@@ -123,8 +123,8 @@
     "lint": "eslint src",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --test dist/test/*.test.js",
-    "pretest": "npm run compile",
+    "test": "node --test out/test/*.test.js",
+    "pretest": "tsc -p tsconfig.test.json",
     "package": "vsce package --no-dependencies",
     "vscode:prepublish": "npm run compile"
   },
