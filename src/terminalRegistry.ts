@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { TerminalSignals, WORKTREE_ENV_KEY, terminalMatchesWorktree, terminalNameFor } from './terminalMatching';
+import { hasClaudeExited } from './claudeProcessTracking';
 
 /**
  * We track "the Claude Code terminal for this worktree" without any in-memory
@@ -20,7 +21,10 @@ function signalsOf(terminal: vscode.Terminal): TerminalSignals {
 
 export function findActiveTerminal(worktreePath: string): vscode.Terminal | undefined {
   return vscode.window.terminals.find(
-    (terminal) => terminal.exitStatus === undefined && terminalMatchesWorktree(signalsOf(terminal), worktreePath)
+    (terminal) =>
+      terminal.exitStatus === undefined &&
+      !hasClaudeExited(terminal) &&
+      terminalMatchesWorktree(signalsOf(terminal), worktreePath)
   );
 }
 
@@ -32,7 +36,7 @@ export function findActiveTerminal(worktreePath: string): vscode.Terminal | unde
  */
 export function isActiveTerminalForWorktree(worktreePath: string): boolean {
   const terminal = vscode.window.activeTerminal;
-  if (!terminal || terminal.exitStatus !== undefined) {
+  if (!terminal || terminal.exitStatus !== undefined || hasClaudeExited(terminal)) {
     return false;
   }
   return terminalMatchesWorktree(signalsOf(terminal), worktreePath);

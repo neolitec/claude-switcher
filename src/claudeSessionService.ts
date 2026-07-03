@@ -15,10 +15,39 @@ export interface ClaudeSessionItem {
    * Whether Claude is actively working on this session's latest turn — a user
    * message (typed or a tool result) has been appended and the assistant
    * hasn't ended its turn yet. Derived from the transcript alone; the caller
-   * should also check for a live terminal, since a crashed/killed CLI leaves
-   * the last turn "open" forever.
+   * should also check for a live terminal (crashed/killed CLI leaves the last
+   * turn "open" forever) and treat `busy` as stale past `BUSY_STALE_MS` (see
+   * `isSessionBusy`), since a `tool_use` stop reason also covers the CLI
+   * sitting idle waiting on a permission prompt, not just active work.
+   *
+   * Known imprecision, left as-is (not worth fixing): every `type: 'user'`
+   * line is treated as opening a new turn, including ones the CLI appends on
+   * the human's behalf (tool results, queued follow-ups, compaction summaries,
+   * ...). A line like that after a completed turn will make a session look
+   * busy again even though no genuinely new human turn started it.
    */
   busy: boolean;
+  /** Timestamp of the transcript line that last changed `busy`, if it had one. Used by `isSessionBusy` to age out a stuck `busy: true`. */
+  busySince?: Date;
+}
+
+/** How long a `busy: true` session is trusted before being treated as stale (see `ClaudeSessionItem.busy`). */
+export const BUSY_STALE_MS = 30_000;
+
+/**
+ * The effective busy state: `false` once a `busy: true` session has gone
+ * quiet for longer than a real turn ever takes uninterrupted — the CLI is
+ * almost certainly idle, waiting on a permission prompt, not actively working.
+ * Pure and takes `now` explicitly so it's deterministic to unit-test.
+ */
+export function isSessionBusy(session: Pick<ClaudeSessionItem, 'busy' | 'busySince'>, now: Date = new Date()): boolean {
+  if (!session.busy) {
+    return false;
+  }
+  if (!session.busySince) {
+    return true;
+  }
+  return now.getTime() - session.busySince.getTime() < BUSY_STALE_MS;
 }
 
 export function getClaudeProjectsDir(): string {
@@ -97,6 +126,7 @@ export async function parseSessionFile(filePath: string): Promise<ClaudeSessionI
   let gitBranch: string | undefined;
   let createdAt: Date | undefined;
   let busy = false;
+  let busySince: Date | undefined;
 
   for await (const line of readLines(filePath)) {
     if (!line) {
@@ -130,8 +160,10 @@ export async function parseSessionFile(filePath: string): Promise<ClaudeSessionI
     // metadata interleaved around turns and don't change this state.
     if (obj.type === 'user') {
       busy = true;
+      busySince = typeof obj.timestamp === 'string' ? new Date(obj.timestamp) : busySince;
     } else if (obj.type === 'assistant') {
       busy = obj.message?.stop_reason === 'tool_use';
+      busySince = typeof obj.timestamp === 'string' ? new Date(obj.timestamp) : busySince;
     }
   }
 
@@ -150,6 +182,7 @@ export async function parseSessionFile(filePath: string): Promise<ClaudeSessionI
     createdAt,
     updatedAt: stat.mtime,
     busy,
+    busySince,
   };
 }
 

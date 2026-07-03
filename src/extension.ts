@@ -72,7 +72,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Picks up sessions created/updated/removed by the `claude` CLI itself —
     // e.g. the new session created by `createSession` a few seconds after the
     // terminal opens, or activity from a session resumed in another window.
-    watchSessions(() => provider.refresh())
+    // A plain content change to an already-known file is patched in place
+    // (updateSession) instead of a full refresh() — see its doc comment for
+    // why that gap matters for the busy indicator.
+    watchSessions((event) =>
+      event.structural ? provider.refresh() : Promise.all(event.changedPaths.map((p) => provider.updateSession(p)))
+    )
   );
 
   await provider.refresh();
