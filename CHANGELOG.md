@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/neolitec/claude-switcher/compare/v0.1.2...v0.1.3) (2026-07-03)
+
+
+### Miscellaneous
+
+* force release to publish vsix artifact ([#10](https://github.com/neolitec/claude-switcher/issues/10)) ([899e62b](https://github.com/neolitec/claude-switcher/commit/899e62b5cb3fffe51b5ca182d0305b97e31951d8))
+
 ## [0.1.2](https://github.com/neolitec/claude-switcher/compare/v0.1.1...v0.1.2) (2026-07-03)
 
 
