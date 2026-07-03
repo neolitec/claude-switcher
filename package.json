@@ -3,7 +3,6 @@
   "displayName": "Claude Switcher",
   "description": "Browse and resume Claude Code conversations from VS Code",
   "version": "0.1.2",
-  "private": true,
   "publisher": "neolitec",
   "author": "neolitec",
   "license": "MIT",
