@@ -56,11 +56,17 @@ npm run format:check  # Prettier
 npm test              # node:test unit suite (compiles first)
 ```
 
-### Packaging (local only)
+### Packaging
 
 ```bash
 npm run package   # produces a .vsix via @vscode/vsce, does not publish
 ```
+
+### Releasing
+
+Merging a conventional-commit PR to `main` triggers [release-please](https://github.com/googleapis/release-please), which opens (or updates) a release PR bumping the version and `CHANGELOG.md`. Merging that release PR creates a GitHub Release, which triggers `.github/workflows/publish.yml` to run `vsce publish` and push the new version to the VS Code Marketplace.
+
+This requires a `VSCE_PAT` repository secret: a Personal Access Token with _Marketplace > Manage_ scope from the Azure DevOps organization backing the `neolitec` publisher (see [Publishing Extensions](https://code.visualstudio.com/api/working-with-extensions/publishing-extension)). The workflow can also be re-run manually (`workflow_dispatch`) to (re-)publish the version currently on `main`.
 
 ## Architecture notes
 
