@@ -135,7 +135,7 @@
     "@commitlint/cli": "^21.2.0",
     "@commitlint/config-conventional": "^21.2.0",
     "@eslint/js": "^10.0.1",
-    "@types/node": "^20.0.0",
+    "@types/node": "^26.1.0",
     "@types/vscode": "^1.90.0",
     "@vscode/vsce": "^3.9.2",
     "eslint": "^10.6.0",
