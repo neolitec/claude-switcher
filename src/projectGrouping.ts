@@ -1,5 +1,6 @@
 import * as path from 'path';
 import { WorktreeInfo } from './gitService';
+import { resolveRealPath } from './pathIdentity';
 
 export interface RepoWorktrees {
   /** Main worktree path of the repo. */
@@ -50,7 +51,7 @@ export function buildProjectLayout(
     const linked = worktrees.filter((w) => w !== main);
     const managed = linked.filter((w) => isUnderClaudeWorktrees(root, w.path));
     const external = linked.filter(
-      (w) => !isUnderClaudeWorktrees(root, w.path) && sessionCwds.has(path.resolve(w.path))
+      (w) => !isUnderClaudeWorktrees(root, w.path) && sessionCwds.has(resolveRealPath(w.path))
     );
 
     layout.push({ rootPath: root, worktrees: [main, ...managed] });

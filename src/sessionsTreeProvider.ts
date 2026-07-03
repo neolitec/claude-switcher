@@ -2,10 +2,11 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { ClaudeSessionItem, listAllSessions } from './claudeSessionService';
 import { listWorktrees, WorktreeInfo } from './gitService';
-import { activeTerminalWorktreePath, findActiveTerminal } from './terminalRegistry';
+import { findActiveTerminal, isActiveTerminalForWorktree } from './terminalRegistry';
 import { WorktreeColor, worktreeColor } from './worktreeAppearance';
 import { WorktreeWatcher } from './worktreeWatcher';
 import { buildProjectLayout, RepoWorktrees } from './projectGrouping';
+import { resolveRealPath } from './pathIdentity';
 
 interface WorktreeWithSessions extends WorktreeInfo {
   /** Sorted most-recent first. */
@@ -73,19 +74,30 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   // Watches each repo's `.git/worktrees` so worktrees added/removed after load
   // show up without a manual refresh.
   private readonly worktreeWatcher = new WorktreeWatcher(() => this.refresh());
+  private readonly terminalEventListeners: vscode.Disposable[];
+  // Bumped on every refresh() call; a call only commits its results if it's
+  // still the most recent one by the time it resolves, so a slow refresh can't
+  // clobber a faster, more recent one.
+  private refreshGeneration = 0;
 
   constructor() {
     // "Active"/"focused" highlighting is derived live from vscode.window
     // terminals (see terminalRegistry) rather than tracked in memory, so a cheap
     // re-render is all that's needed to pick up terminals opening, closing, or
     // the focused terminal changing.
-    vscode.window.onDidOpenTerminal(() => this.onDidChangeTreeDataEmitter.fire());
-    vscode.window.onDidCloseTerminal(() => this.onDidChangeTreeDataEmitter.fire());
-    vscode.window.onDidChangeActiveTerminal(() => this.onDidChangeTreeDataEmitter.fire());
+    this.terminalEventListeners = [
+      vscode.window.onDidOpenTerminal(() => this.onDidChangeTreeDataEmitter.fire()),
+      vscode.window.onDidCloseTerminal(() => this.onDidChangeTreeDataEmitter.fire()),
+      vscode.window.onDidChangeActiveTerminal(() => this.onDidChangeTreeDataEmitter.fire()),
+    ];
   }
 
   dispose(): void {
     this.worktreeWatcher.dispose();
+    this.onDidChangeTreeDataEmitter.dispose();
+    for (const listener of this.terminalEventListeners) {
+      listener.dispose();
+    }
   }
 
   /** Re-renders the tree from already-loaded data, without touching disk or git. */
@@ -102,10 +114,26 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   }
 
   async refresh(): Promise<void> {
+    const generation = ++this.refreshGeneration;
+
     const allSessions = await listAllSessions();
     const cwds = Array.from(new Set(allSessions.map((s) => s.cwd).filter((c): c is string => !!c)));
 
-    const perCwd = await Promise.all(cwds.map(async (cwd) => ({ cwd, worktrees: await listWorktrees(cwd) })));
+    // `git worktree list` returns every worktree of a repo regardless of which
+    // one it's run from, so once a cwd's repo has been resolved, skip spawning
+    // git again for any other cwd that turns out to belong to the same repo.
+    const worktreesByRealPath = new Map<string, WorktreeInfo[]>();
+    const perCwd: { cwd: string; worktrees: WorktreeInfo[] }[] = [];
+    for (const cwd of cwds) {
+      const cached = worktreesByRealPath.get(resolveRealPath(cwd));
+      const worktrees = cached ?? (await listWorktrees(cwd));
+      if (!cached) {
+        for (const wt of worktrees) {
+          worktreesByRealPath.set(resolveRealPath(wt.path), worktrees);
+        }
+      }
+      perCwd.push({ cwd, worktrees });
+    }
 
     // Discover each repo once (keyed by its main worktree), plus non-git cwds.
     const repos: RepoWorktrees[] = [];
@@ -123,20 +151,26 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       }
     }
 
-    const sessionCwds = new Set(cwds.map((c) => path.resolve(c)));
+    const sessionCwds = new Set(cwds.map((c) => resolveRealPath(c)));
     const projects: ProjectData[] = buildProjectLayout(repos, standaloneCwds, sessionCwds).map(
       ({ rootPath, worktrees }) => ({
         rootPath,
         worktrees: worktrees.map((wt) => ({
           ...wt,
           sessions: allSessions
-            .filter((s) => s.cwd && path.resolve(s.cwd) === path.resolve(wt.path))
+            .filter((s) => s.cwd && resolveRealPath(s.cwd) === resolveRealPath(wt.path))
             .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()),
         })),
       })
     );
 
     projects.sort((a, b) => latestActivity(b) - latestActivity(a));
+
+    // A newer refresh() call has since started (and possibly already
+    // committed); don't let this slower, stale one overwrite its results.
+    if (generation !== this.refreshGeneration) {
+      return;
+    }
 
     this.projects = projects;
     this.worktreeWatcher.setRepoRoots(projects.map((p) => p.rootPath));
@@ -208,7 +242,7 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   private latestDescription(worktree: WorktreeWithSessions): string {
     const latest = worktree.sessions[0];
     const hasActiveTerminal = findActiveTerminal(worktree.path) !== undefined;
-    const isFocused = hasActiveTerminal && samePath(activeTerminalWorktreePath(), worktree.path);
+    const isFocused = hasActiveTerminal && isActiveTerminalForWorktree(worktree.path);
     const bits: string[] = [];
     if (latest) {
       bits.push(latest.title);
@@ -262,7 +296,8 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   private buildWorktreeItem(node: WorktreeNode): vscode.TreeItem {
     const { worktree } = node;
     const simplified = !this.showHistory;
-    const label = worktree.branch ?? (worktree.detached ? 'detached HEAD' : path.basename(worktree.path));
+    const label =
+      worktree.branch ?? (worktree.bare ? 'bare' : worktree.detached ? 'detached HEAD' : path.basename(worktree.path));
     const hasSessions = worktree.sessions.length > 0;
     // A live `claude` terminal can exist before Claude Code has persisted the
     // session's .jsonl (it writes it lazily), so reflect the terminal directly
@@ -324,7 +359,7 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     const { session } = node;
     // Only the latest session of a worktree can be "running" (one terminal per worktree).
     const isRunning = node.isLatest && findActiveTerminal(node.worktreePath) !== undefined;
-    const isFocused = isRunning && samePath(activeTerminalWorktreePath(), node.worktreePath);
+    const isFocused = isRunning && isActiveTerminalForWorktree(node.worktreePath);
 
     const item = new vscode.TreeItem(session.title, vscode.TreeItemCollapsibleState.None);
     const time = formatRelativeTime(session.updatedAt);
@@ -361,10 +396,6 @@ const THEME_COLOR: Record<WorktreeColor, vscode.ThemeColor | undefined> = {
   grey: new vscode.ThemeColor('disabledForeground'),
   none: undefined,
 };
-
-function samePath(a: string | undefined, b: string): boolean {
-  return a !== undefined && path.resolve(a) === path.resolve(b);
-}
 
 function latestActivity(project: ProjectData): number {
   let latest = 0;

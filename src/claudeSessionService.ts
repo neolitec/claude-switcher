@@ -48,6 +48,36 @@ async function listSessionsInDir(dirPath: string): Promise<ClaudeSessionItem[]> 
   return parsed.filter((s): s is ClaudeSessionItem => s !== null);
 }
 
+/**
+ * Reads `filePath` line by line. A plain `fs.createReadStream` piped into
+ * `readline` does not forward the stream's `error` event anywhere `for await`
+ * can see it — an I/O error (e.g. the file is deleted mid-read) would otherwise
+ * surface as an unhandled 'error' event and crash the extension host instead of
+ * rejecting this promise.
+ */
+async function* readLines(filePath: string): AsyncGenerator<string> {
+  const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
+  let streamError: Error | undefined;
+  stream.on('error', (err) => {
+    streamError = err instanceof Error ? err : new Error(String(err));
+  });
+
+  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+  try {
+    for await (const line of rl) {
+      if (streamError) {
+        throw streamError;
+      }
+      yield line;
+    }
+    if (streamError) {
+      throw streamError;
+    }
+  } finally {
+    rl.close();
+  }
+}
+
 /** Exported for unit testing; not part of the extension's public surface otherwise. */
 export async function parseSessionFile(filePath: string): Promise<ClaudeSessionItem | null> {
   const stat = await fs.promises.stat(filePath);
@@ -59,12 +89,7 @@ export async function parseSessionFile(filePath: string): Promise<ClaudeSessionI
   let gitBranch: string | undefined;
   let createdAt: Date | undefined;
 
-  const rl = readline.createInterface({
-    input: fs.createReadStream(filePath, { encoding: 'utf8' }),
-    crlfDelay: Infinity,
-  });
-
-  for await (const line of rl) {
+  for await (const line of readLines(filePath)) {
     if (!line) {
       continue;
     }
@@ -110,13 +135,8 @@ export async function parseSessionFile(filePath: string): Promise<ClaudeSessionI
 }
 
 export async function readSessionTranscript(filePath: string): Promise<string> {
-  const rl = readline.createInterface({
-    input: fs.createReadStream(filePath, { encoding: 'utf8' }),
-    crlfDelay: Infinity,
-  });
-
   const parts: string[] = [];
-  for await (const line of rl) {
+  for await (const line of readLines(filePath)) {
     if (!line) {
       continue;
     }

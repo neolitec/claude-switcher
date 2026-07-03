@@ -33,11 +33,3 @@ export function terminalMatchesWorktree(signals: TerminalSignals, worktreePath: 
   }
   return signals.name === terminalNameFor(worktreePath);
 }
-
-/**
- * The worktree a terminal belongs to, if it can be determined. Only the precise
- * signals are used: the name is a basename and can't be turned back into a path.
- */
-export function worktreePathForTerminal(signals: TerminalSignals): string | undefined {
-  return signals.envWorktreePath ?? signals.shellCwdFsPath;
-}

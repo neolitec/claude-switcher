@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { terminalMatchesWorktree, terminalNameFor, worktreePathForTerminal } from '../terminalMatching';
+import { terminalMatchesWorktree, terminalNameFor } from '../terminalMatching';
 
 test('terminalNameFor: deterministic name from the worktree basename', () => {
   assert.equal(terminalNameFor('/Users/me/dev/repo'), 'Claude · repo');
@@ -25,10 +25,4 @@ test('terminalMatchesWorktree: falls back to the deterministic name', () => {
 
 test('terminalMatchesWorktree: no signals means no match', () => {
   assert.equal(terminalMatchesWorktree({}, '/repo'), false);
-});
-
-test('worktreePathForTerminal: prefers env, then shell cwd, else undefined', () => {
-  assert.equal(worktreePathForTerminal({ envWorktreePath: '/a', shellCwdFsPath: '/b' }), '/a');
-  assert.equal(worktreePathForTerminal({ shellCwdFsPath: '/b' }), '/b');
-  assert.equal(worktreePathForTerminal({ name: 'Claude · repo' }), undefined);
 });
