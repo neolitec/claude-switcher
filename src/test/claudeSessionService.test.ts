@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { listAllSessions, parseSessionFile } from '../claudeSessionService';
+import { listAllSessions, parseSessionFile, readSessionTranscript } from '../claudeSessionService';
 
 async function makeTempDir(): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), 'claude-switcher-test-'));
@@ -103,6 +103,25 @@ test('parseSessionFile: skips malformed JSON lines instead of failing', async ()
 
   assert.ok(session);
   assert.equal(session.title, 'ok');
+});
+
+test('parseSessionFile: rejects instead of crashing the process when the stream errors mid-read', async () => {
+  const dir = await makeTempDir();
+  // Opening a directory as a read stream fails asynchronously with EISDIR once
+  // reading starts (stat() above succeeds fine, since the path does exist) —
+  // this is what would previously surface as an unhandled 'error' event.
+  const unreadablePath = path.join(dir, 'not-actually-a-file.jsonl');
+  await fs.mkdir(unreadablePath);
+
+  await assert.rejects(() => parseSessionFile(unreadablePath));
+});
+
+test('readSessionTranscript: rejects instead of crashing the process when the stream errors mid-read', async () => {
+  const dir = await makeTempDir();
+  const unreadablePath = path.join(dir, 'not-actually-a-file.jsonl');
+  await fs.mkdir(unreadablePath);
+
+  await assert.rejects(() => readSessionTranscript(unreadablePath));
 });
 
 test('listAllSessions: flattens sessions across every project subdirectory', async () => {

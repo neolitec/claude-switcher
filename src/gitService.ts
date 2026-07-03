@@ -8,6 +8,8 @@ export interface WorktreeInfo {
   branch?: string;
   detached: boolean;
   isMain: boolean;
+  /** True for a bare repo's main worktree entry (no checked-out branch/HEAD). */
+  bare?: boolean;
 }
 
 /**
@@ -38,6 +40,7 @@ export function parseWorktreeListPorcelain(stdout: string): WorktreeInfo[] {
     let path: string | undefined;
     let branch: string | undefined;
     let detached = false;
+    let bare = false;
 
     for (const line of lines) {
       if (line.startsWith('worktree ')) {
@@ -47,11 +50,17 @@ export function parseWorktreeListPorcelain(stdout: string): WorktreeInfo[] {
         branch = ref.replace(/^refs\/heads\//, '');
       } else if (line === 'detached') {
         detached = true;
+      } else if (line === 'bare') {
+        bare = true;
       }
     }
 
     if (path) {
-      worktrees.push({ path, branch, detached, isMain: index === 0 });
+      const info: WorktreeInfo = { path, branch, detached, isMain: index === 0 };
+      if (bare) {
+        info.bare = true;
+      }
+      worktrees.push(info);
     }
   });
 

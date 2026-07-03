@@ -52,6 +52,22 @@ test('parseWorktreeListPorcelain: detached HEAD worktree has no branch', () => {
   assert.deepEqual(worktrees[1], { path: '/repo-detached', branch: undefined, detached: true, isMain: false });
 });
 
+test('parseWorktreeListPorcelain: a bare repo main entry is marked bare, with no branch', () => {
+  const stdout = ['worktree /repo.git', 'bare', ''].join('\n');
+
+  const worktrees = parseWorktreeListPorcelain(stdout);
+
+  assert.deepEqual(worktrees, [{ path: '/repo.git', branch: undefined, detached: false, isMain: true, bare: true }]);
+});
+
+test('parseWorktreeListPorcelain: a non-bare worktree has no bare field', () => {
+  const stdout = ['worktree /repo', 'HEAD abc123', 'branch refs/heads/main', ''].join('\n');
+
+  const worktrees = parseWorktreeListPorcelain(stdout);
+
+  assert.equal('bare' in worktrees[0], false);
+});
+
 test('parseWorktreeListPorcelain: empty output yields no worktrees', () => {
   assert.deepEqual(parseWorktreeListPorcelain(''), []);
 });

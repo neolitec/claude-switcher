@@ -1,11 +1,5 @@
 import * as vscode from 'vscode';
-import {
-  TerminalSignals,
-  WORKTREE_ENV_KEY,
-  terminalMatchesWorktree,
-  terminalNameFor,
-  worktreePathForTerminal,
-} from './terminalMatching';
+import { TerminalSignals, WORKTREE_ENV_KEY, terminalMatchesWorktree, terminalNameFor } from './terminalMatching';
 
 /**
  * We track "the Claude Code terminal for this worktree" without any in-memory
@@ -30,13 +24,18 @@ export function findActiveTerminal(worktreePath: string): vscode.Terminal | unde
   );
 }
 
-/** The worktree path of the terminal currently focused in the panel, if any. */
-export function activeTerminalWorktreePath(): string | undefined {
+/**
+ * Whether the terminal currently focused in the panel belongs to `worktreePath`.
+ * Uses the same signal matching as `findActiveTerminal` so "has a running
+ * terminal" and "is the focused terminal" can never disagree about which
+ * worktree a given terminal belongs to.
+ */
+export function isActiveTerminalForWorktree(worktreePath: string): boolean {
   const terminal = vscode.window.activeTerminal;
   if (!terminal || terminal.exitStatus !== undefined) {
-    return undefined;
+    return false;
   }
-  return worktreePathForTerminal(signalsOf(terminal));
+  return terminalMatchesWorktree(signalsOf(terminal), worktreePath);
 }
 
 export function createWorktreeTerminal(worktreePath: string): vscode.Terminal {
