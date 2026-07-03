@@ -23,7 +23,7 @@
   ],
   "engines": {
     "vscode": "^1.90.0",
-    "node": ">=18"
+    "node": ">=20"
   },
   "categories": [
     "Other"

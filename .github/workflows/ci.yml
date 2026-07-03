@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
+        node-version: [20.x, 22.x]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,9 +20,6 @@ jobs:
       - run: npm ci
       - run: npm run compile
       - run: npm run lint
-      # Knip v6 needs node:util styleText (Node 20.12+); the extension itself
-      # still targets the Node 18 bundled by VS Code, so lint it on 20 only.
       - run: npm run knip
-        if: matrix.node-version == '20.x'
       - run: npm run format:check
       - run: npm test
