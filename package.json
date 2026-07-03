@@ -2,7 +2,7 @@
   "name": "claude-switcher",
   "displayName": "Claude Switcher",
   "description": "Browse and resume Claude Code conversations from VS Code",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "publisher": "neolitec",
   "author": "neolitec",
@@ -25,6 +25,7 @@
     "vscode": "^1.90.0",
     "node": ">=20"
   },
+  "packageManager": "pnpm@10.6.2",
   "categories": [
     "Other"
   ],
@@ -127,15 +128,19 @@
     "test": "node --test out/test/*.test.js",
     "pretest": "tsc -p tsconfig.test.json",
     "package": "vsce package --no-dependencies",
-    "vscode:prepublish": "npm run compile"
+    "vscode:prepublish": "tsc -p ./",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.0",
+    "@commitlint/config-conventional": "^21.2.0",
     "@eslint/js": "^10.0.1",
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.90.0",
     "@vscode/vsce": "^3.9.2",
     "eslint": "^10.6.0",
     "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
     "knip": "^6.24.0",
     "prettier": "^3.9.4",
     "typescript": "^5.5.0",
