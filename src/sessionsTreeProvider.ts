@@ -49,6 +49,20 @@ export class PreviousSessionsNode {
 
 export type TreeNode = ProjectFolderNode | WorktreeNode | SessionNode | PreviousSessionsNode;
 
+// Prepended to a row's label while Claude is actively working on it. `~spin`
+// is a real codicon modifier VS Code animates wherever codicons render,
+// including TreeItem labels — not just the status bar.
+const BUSY_PREFIX = '$(sync~spin) ';
+
+/**
+ * A session is only shown as "busy" while it also has a live terminal —
+ * `ClaudeSessionItem.busy` alone can't tell a mid-turn session from one whose
+ * CLI process was killed before it could write the closing `end_turn` line.
+ */
+function withBusyPrefix(label: string, session: ClaudeSessionItem | undefined, hasActiveTerminal: boolean): string {
+  return hasActiveTerminal && session?.busy ? `${BUSY_PREFIX}${label}` : label;
+}
+
 /**
  * The worktree a command should act on. In the expanded view commands fire on a
  * WorktreeNode; in the simplified view the project node stands in for its main
@@ -270,7 +284,7 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     const isLeaf = managed.length === 0;
 
     const item = new vscode.TreeItem(
-      path.basename(data.rootPath),
+      withBusyPrefix(path.basename(data.rootPath), latest, hasActiveTerminal),
       isLeaf ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Collapsed
     );
     item.description = this.latestDescription(main);
@@ -307,7 +321,7 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     const collapsibleState =
       simplified || !hasSessions ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Expanded;
 
-    const item = new vscode.TreeItem(label, collapsibleState);
+    const item = new vscode.TreeItem(withBusyPrefix(label, worktree.sessions[0], hasActiveTerminal), collapsibleState);
     if (simplified) {
       item.description = this.latestDescription(worktree);
       item.tooltip = worktree.path;
@@ -361,7 +375,10 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     const isRunning = node.isLatest && findActiveTerminal(node.worktreePath) !== undefined;
     const isFocused = isRunning && isActiveTerminalForWorktree(node.worktreePath);
 
-    const item = new vscode.TreeItem(session.title, vscode.TreeItemCollapsibleState.None);
+    const item = new vscode.TreeItem(
+      withBusyPrefix(session.title, session, isRunning),
+      vscode.TreeItemCollapsibleState.None
+    );
     const time = formatRelativeTime(session.updatedAt);
     if (isFocused) {
       item.description = `${time} — active`;

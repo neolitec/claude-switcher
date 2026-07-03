@@ -105,6 +105,76 @@ test('parseSessionFile: skips malformed JSON lines instead of failing', async ()
   assert.equal(session.title, 'ok');
 });
 
+test('parseSessionFile: busy when the last line is a user message awaiting a reply', async () => {
+  const dir = await makeTempDir();
+  const filePath = path.join(dir, 'session-busy-1.jsonl');
+  await fs.writeFile(
+    filePath,
+    jsonl(
+      { type: 'user', timestamp: '2026-01-01T00:00:00.000Z', message: { content: 'hi' } },
+      { type: 'assistant', timestamp: '2026-01-01T00:00:01.000Z', message: { stop_reason: 'end_turn' } },
+      { type: 'user', timestamp: '2026-01-01T00:00:02.000Z', message: { content: 'and now?' } }
+    )
+  );
+
+  const session = await parseSessionFile(filePath);
+
+  assert.equal(session?.busy, true);
+});
+
+test('parseSessionFile: busy when the assistant is mid-turn on a tool call', async () => {
+  const dir = await makeTempDir();
+  const filePath = path.join(dir, 'session-busy-2.jsonl');
+  await fs.writeFile(
+    filePath,
+    jsonl(
+      { type: 'user', timestamp: '2026-01-01T00:00:00.000Z', message: { content: 'hi' } },
+      { type: 'assistant', timestamp: '2026-01-01T00:00:01.000Z', message: { stop_reason: 'tool_use' } }
+    )
+  );
+
+  const session = await parseSessionFile(filePath);
+
+  assert.equal(session?.busy, true);
+});
+
+test('parseSessionFile: not busy once the assistant has ended its turn', async () => {
+  const dir = await makeTempDir();
+  const filePath = path.join(dir, 'session-idle-1.jsonl');
+  await fs.writeFile(
+    filePath,
+    jsonl(
+      { type: 'user', timestamp: '2026-01-01T00:00:00.000Z', message: { content: 'hi' } },
+      { type: 'assistant', timestamp: '2026-01-01T00:00:01.000Z', message: { stop_reason: 'tool_use' } },
+      { type: 'user', timestamp: '2026-01-01T00:00:02.000Z', message: { content: [{ type: 'tool_result' }] } },
+      { type: 'assistant', timestamp: '2026-01-01T00:00:03.000Z', message: { stop_reason: 'end_turn' } }
+    )
+  );
+
+  const session = await parseSessionFile(filePath);
+
+  assert.equal(session?.busy, false);
+});
+
+test('parseSessionFile: metadata lines after the last turn do not resurrect busy state', async () => {
+  const dir = await makeTempDir();
+  const filePath = path.join(dir, 'session-idle-2.jsonl');
+  await fs.writeFile(
+    filePath,
+    jsonl(
+      { type: 'user', timestamp: '2026-01-01T00:00:00.000Z', message: { content: 'hi' } },
+      { type: 'assistant', timestamp: '2026-01-01T00:00:01.000Z', message: { stop_reason: 'end_turn' } },
+      { type: 'last-prompt', lastPrompt: 'hi' },
+      { type: 'ai-title', aiTitle: 'A chat' },
+      { type: 'mode', mode: 'normal' }
+    )
+  );
+
+  const session = await parseSessionFile(filePath);
+
+  assert.equal(session?.busy, false);
+});
+
 test('parseSessionFile: rejects instead of crashing the process when the stream errors mid-read', async () => {
   const dir = await makeTempDir();
   // Opening a directory as a read stream fails asynchronously with EISDIR once

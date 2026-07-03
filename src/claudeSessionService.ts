@@ -11,6 +11,14 @@ export interface ClaudeSessionItem {
   gitBranch?: string;
   createdAt?: Date;
   updatedAt: Date;
+  /**
+   * Whether Claude is actively working on this session's latest turn — a user
+   * message (typed or a tool result) has been appended and the assistant
+   * hasn't ended its turn yet. Derived from the transcript alone; the caller
+   * should also check for a live terminal, since a crashed/killed CLI leaves
+   * the last turn "open" forever.
+   */
+  busy: boolean;
 }
 
 export function getClaudeProjectsDir(): string {
@@ -88,6 +96,7 @@ export async function parseSessionFile(filePath: string): Promise<ClaudeSessionI
   let cwd: string | undefined;
   let gitBranch: string | undefined;
   let createdAt: Date | undefined;
+  let busy = false;
 
   for await (const line of readLines(filePath)) {
     if (!line) {
@@ -115,6 +124,15 @@ export async function parseSessionFile(filePath: string): Promise<ClaudeSessionI
     if (!firstUserText && obj.type === 'user' && typeof obj.message?.content === 'string') {
       firstUserText = obj.message.content;
     }
+    // A `user` line (typed by the human, or a tool result fed back by the CLI)
+    // opens a turn; an `assistant` line closes it unless it's mid-turn waiting
+    // on a tool call. Other line types (ai-title, mode, system, ...) are
+    // metadata interleaved around turns and don't change this state.
+    if (obj.type === 'user') {
+      busy = true;
+    } else if (obj.type === 'assistant') {
+      busy = obj.message?.stop_reason === 'tool_use';
+    }
   }
 
   if (!createdAt) {
@@ -131,6 +149,7 @@ export async function parseSessionFile(filePath: string): Promise<ClaudeSessionI
     gitBranch,
     createdAt,
     updatedAt: stat.mtime,
+    busy,
   };
 }
 
