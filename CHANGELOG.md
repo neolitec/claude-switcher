@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.2](https://github.com/neolitec/claude-switcher/compare/v0.1.1...v0.1.2) (2026-07-03)
+
+
+### Bug Fixes
+
+* check PR author instead of triggering actor for dependabot skip ([4390f87](https://github.com/neolitec/claude-switcher/commit/4390f87a7f90cefe4f8710b72751d5e71d065478))
+* check PR author instead of triggering actor for dependabot skip ([75735ed](https://github.com/neolitec/claude-switcher/commit/75735edf67fdb138bec1c65e89c4e6ec1a9c4cbb))
+* don't fail commitlint on Dependabot PRs ([7f63c34](https://github.com/neolitec/claude-switcher/commit/7f63c346f4abaf74a259f3ac3a59afffa7f039ce))
+* exclude generated CHANGELOG.md from prettier check ([02dbe81](https://github.com/neolitec/claude-switcher/commit/02dbe81a374041fd32515907a4f3b7cb60004e5f))
+* harden session reading, path matching, and tree refresh from a full codebase review ([#6](https://github.com/neolitec/claude-switcher/issues/6)) ([b5aaed8](https://github.com/neolitec/claude-switcher/commit/b5aaed868d0399e49813a2ad7e2376a65abb364f))
+
 ## 0.1.1
 
 ### Patch Changes
