@@ -1,0 +1,19 @@
+src/sessionsTreeProvider.ts
+  s_6ef22c96142371::t_bad6199c8cb3e4 150-153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d5d35a3bf8d9463057ea0d0f5fd0c7eb5b8237a4",
+  "prompts": {},
+  "sessions": {
+    "s_6ef22c96142371": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1757d58-d91f-4a2c-888a-b0980d0f7ea9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Kevin Manson <kevin.manson@qohash.com>"
+    }
+  }
+}
