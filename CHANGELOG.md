@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0](https://github.com/neolitec/claude-switcher/compare/v0.1.3...v0.2.0) (2026-07-04)
+
+
+### Features
+
+* scope the tree to the projects open in the workspace ([c9a1fac](https://github.com/neolitec/claude-switcher/commit/c9a1fac6c659e7c976d516252559596ef5f1a27c))
+* scope the tree to the projects open in the workspace ([93286f3](https://github.com/neolitec/claude-switcher/commit/93286f3484c1dfcb37da4173c27a27dc9454354f))
+
+
+### Bug Fixes
+
+* use correct release-please output keys for root package ([#12](https://github.com/neolitec/claude-switcher/issues/12)) ([97855aa](https://github.com/neolitec/claude-switcher/commit/97855aa39b9b5372b5f3098a65e463520376822e))
+
 ## [0.1.3](https://github.com/neolitec/claude-switcher/compare/v0.1.2...v0.1.3) (2026-07-03)
 
 
