@@ -66,9 +66,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         createSession(node.worktree.path);
       }
     }),
-    // Adding a worktree folder here never changes which sessions/worktrees exist,
-    // so a cheap re-render is enough — no need to re-scan ~/.claude/projects or re-run git.
-    vscode.workspace.onDidChangeWorkspaceFolders(() => provider.rerender()),
+    // The tree is scoped to the open workspace folders, so adding or removing
+    // one changes which projects are listed — that takes a full refresh.
+    vscode.workspace.onDidChangeWorkspaceFolders(() => provider.refresh()),
     // Picks up sessions created/updated/removed by the `claude` CLI itself —
     // e.g. the new session created by `createSession` a few seconds after the
     // terminal opens, or activity from a session resumed in another window.
