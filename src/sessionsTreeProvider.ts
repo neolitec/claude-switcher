@@ -147,7 +147,10 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     );
 
     const sessionCwds = new Set(
-      allSessions.map((s) => s.cwd).filter((c): c is string => !!c).map((c) => resolveRealPath(c))
+      allSessions
+        .map((s) => s.cwd)
+        .filter((c): c is string => !!c)
+        .map((c) => resolveRealPath(c))
     );
     const projects: ProjectData[] = buildProjectLayout(repos, standaloneCwds, sessionCwds).map(
       ({ rootPath, worktrees }) => ({
