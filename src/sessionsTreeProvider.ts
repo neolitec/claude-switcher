@@ -6,7 +6,7 @@ import { findActiveTerminal, isActiveTerminalForWorktree } from './terminalRegis
 import { WorktreeColor, worktreeColor } from './worktreeAppearance';
 import { WorktreeWatcher } from './worktreeWatcher';
 import { buildProjectLayout, RepoWorktrees } from './projectGrouping';
-import { resolveRealPath } from './pathIdentity';
+import { isSameOrInside, resolveRealPath } from './pathIdentity';
 
 interface WorktreeWithSessions extends WorktreeInfo {
   /** Sorted most-recent first. */
@@ -100,11 +100,6 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     }
   }
 
-  /** Re-renders the tree from already-loaded data, without touching disk or git. */
-  rerender(): void {
-    this.onDidChangeTreeDataEmitter.fire();
-  }
-
   setShowHistory(value: boolean): void {
     if (this.showHistory === value) {
       return;
@@ -116,32 +111,22 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   async refresh(): Promise<void> {
     const generation = ++this.refreshGeneration;
 
-    const allSessions = await listAllSessions();
-    const cwds = Array.from(new Set(allSessions.map((s) => s.cwd).filter((c): c is string => !!c)));
+    // The tree is scoped to the projects open in this window: only the
+    // workspace folders' repos (all their worktrees included) are listed, not
+    // every project that ever ran a session under ~/.claude/projects. This
+    // also keeps `git worktree list` spawns down to one per open folder.
+    const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
 
-    // `git worktree list` returns every worktree of a repo regardless of which
-    // one it's run from, so once a cwd's repo has been resolved, skip spawning
-    // git again for any other cwd that turns out to belong to the same repo.
-    const worktreesByRealPath = new Map<string, WorktreeInfo[]>();
-    const perCwd: { cwd: string; worktrees: WorktreeInfo[] }[] = [];
-    for (const cwd of cwds) {
-      const cached = worktreesByRealPath.get(resolveRealPath(cwd));
-      const worktrees = cached ?? (await listWorktrees(cwd));
-      if (!cached) {
-        for (const wt of worktrees) {
-          worktreesByRealPath.set(resolveRealPath(wt.path), worktrees);
-        }
-      }
-      perCwd.push({ cwd, worktrees });
-    }
-
-    // Discover each repo once (keyed by its main worktree), plus non-git cwds.
+    // Discover each open folder's repo once (two folders can be worktrees of
+    // the same repo), keyed by main worktree; a folder outside git is its own
+    // standalone project.
     const repos: RepoWorktrees[] = [];
     const seenRoots = new Set<string>();
     const standaloneCwds: string[] = [];
-    for (const { cwd, worktrees } of perCwd) {
+    for (const folder of folders) {
+      const worktrees = await listWorktrees(folder);
       if (worktrees.length === 0) {
-        standaloneCwds.push(cwd);
+        standaloneCwds.push(folder);
         continue;
       }
       const root = worktrees[0].path;
@@ -151,7 +136,22 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       }
     }
 
-    const sessionCwds = new Set(cwds.map((c) => resolveRealPath(c)));
+    // Only sessions living under one of the open projects (any worktree of an
+    // open repo counts, wherever it is on disk) make it into the tree.
+    const allowedRoots = [
+      ...repos.flatMap((repo) => repo.worktrees.map((wt) => resolveRealPath(wt.path))),
+      ...standaloneCwds.map((c) => resolveRealPath(c)),
+    ];
+    const allSessions = (await listAllSessions()).filter(
+      (s) => s.cwd && allowedRoots.some((root) => isSameOrInside(resolveRealPath(s.cwd!), root))
+    );
+
+    const sessionCwds = new Set(
+      allSessions
+        .map((s) => s.cwd)
+        .filter((c): c is string => !!c)
+        .map((c) => resolveRealPath(c))
+    );
     const projects: ProjectData[] = buildProjectLayout(repos, standaloneCwds, sessionCwds).map(
       ({ rootPath, worktrees }) => ({
         rootPath,

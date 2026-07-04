@@ -14,3 +14,8 @@ export function resolveRealPath(p: string): string {
     return path.resolve(p);
   }
 }
+
+/** Whether `child` is `parent` or lives anywhere under it. Expects both already resolved via `resolveRealPath`. */
+export function isSameOrInside(child: string, parent: string): boolean {
+  return child === parent || child.startsWith(parent + path.sep);
+}
