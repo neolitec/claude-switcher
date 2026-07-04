@@ -1,0 +1,45 @@
+src/sessionsTreeProvider.ts
+  s_6ef22c96142371::t_6f9e8790abcc13 488-489,492-493
+  s_6ef22c96142371::t_1d5b44c506ff89 2,5
+  s_6ef22c96142371::t_5a46cc4f9f8af7 491
+  s_6ef22c96142371::t_e10b53acdedb83 167-170
+  s_6ef22c96142371::t_08e4d82491999e 56-62,64-71
+  s_6ef22c96142371::t_faca45e678c747 437-438
+  s_6ef22c96142371::t_47e10e53e4e53a 72-80
+  s_6ef22c96142371::t_2fc4e1107b919a 226-230,232-234,238-239,241,251-264
+  s_6ef22c96142371::t_d0bb781bde3a27 115-121
+  s_6ef22c96142371::t_e5a6d2463c0e7e 12
+  s_6ef22c96142371::t_bd46a8c684501e 477
+  s_6ef22c96142371::t_15c9e69f663112 420
+  s_6ef22c96142371::t_32d805c570f689 140-159
+  s_6ef22c96142371::t_1a9866f9fcbdc1 136-137
+  s_6ef22c96142371::t_c55f897f7bf70c 391-393
+  s_6ef22c96142371::t_dadc07aedc8a39 439-440
+  s_6ef22c96142371::t_af633de43aabae 383,390
+src/cliSessionStatus.ts
+  s_6ef22c96142371::t_fcb9042983b238 1-66,68-119
+  s_6ef22c96142371::t_4648e02f98809e 67
+src/test/cliSessionStatus.test.ts
+  s_6ef22c96142371::t_a6588a4c2ce9bd 1-103
+src/pathIdentity.ts
+  s_6ef22c96142371::t_25ac4a367291fe 17-21
+src/test/pathIdentity.test.ts
+  s_6ef22c96142371::t_cc1ba8ce93c8bf 21-27
+  s_6ef22c96142371::t_4a345f0cd2f948 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "29f48437be831ef747db9c4eea9bb1a433a0871c",
+  "prompts": {},
+  "sessions": {
+    "s_6ef22c96142371": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1757d58-d91f-4a2c-888a-b0980d0f7ea9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Kevin Manson <kevin.manson@qohash.com>"
+    }
+  }
+}
