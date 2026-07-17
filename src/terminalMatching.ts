@@ -21,6 +21,14 @@ export function terminalNameFor(worktreePath: string): string {
   return `Claude · ${path.basename(worktreePath)}`;
 }
 
+/**
+ * Matches the exact invocations `terminalRegistry` sends via `terminal.sendText`
+ * (`claude` and `claude --resume <id>`).
+ */
+export function isClaudeInvocation(commandLine: string): boolean {
+  return /^claude(\s|$)/.test(commandLine.trim());
+}
+
 /** Whether a terminal (described by its signals) belongs to `worktreePath`. */
 export function terminalMatchesWorktree(signals: TerminalSignals, worktreePath: string): boolean {
   const resolved = path.resolve(worktreePath);

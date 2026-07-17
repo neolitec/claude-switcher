@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { listAllSessions, parseSessionFile, readSessionTranscript } from '../claudeSessionService';
+import {
+  BUSY_STALE_MS,
+  isSessionBusy,
+  listAllSessions,
+  parseSessionFile,
+  readSessionTranscript,
+} from '../claudeSessionService';
 
 async function makeTempDir(): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), 'claude-switcher-test-'));
@@ -103,6 +109,138 @@ test('parseSessionFile: skips malformed JSON lines instead of failing', async ()
 
   assert.ok(session);
   assert.equal(session.title, 'ok');
+});
+
+test('parseSessionFile: busy when the last line is a user message awaiting a reply', async () => {
+  const dir = await makeTempDir();
+  const filePath = path.join(dir, 'session-busy-1.jsonl');
+  await fs.writeFile(
+    filePath,
+    jsonl(
+      { type: 'user', timestamp: '2026-01-01T00:00:00.000Z', message: { content: 'hi' } },
+      { type: 'assistant', timestamp: '2026-01-01T00:00:01.000Z', message: { stop_reason: 'end_turn' } },
+      { type: 'user', timestamp: '2026-01-01T00:00:02.000Z', message: { content: 'and now?' } }
+    )
+  );
+
+  const session = await parseSessionFile(filePath);
+
+  assert.equal(session?.busy, true);
+});
+
+test('parseSessionFile: busy when the assistant is mid-turn on a tool call', async () => {
+  const dir = await makeTempDir();
+  const filePath = path.join(dir, 'session-busy-2.jsonl');
+  await fs.writeFile(
+    filePath,
+    jsonl(
+      { type: 'user', timestamp: '2026-01-01T00:00:00.000Z', message: { content: 'hi' } },
+      { type: 'assistant', timestamp: '2026-01-01T00:00:01.000Z', message: { stop_reason: 'tool_use' } }
+    )
+  );
+
+  const session = await parseSessionFile(filePath);
+
+  assert.equal(session?.busy, true);
+});
+
+test('parseSessionFile: not busy once the assistant has ended its turn', async () => {
+  const dir = await makeTempDir();
+  const filePath = path.join(dir, 'session-idle-1.jsonl');
+  await fs.writeFile(
+    filePath,
+    jsonl(
+      { type: 'user', timestamp: '2026-01-01T00:00:00.000Z', message: { content: 'hi' } },
+      { type: 'assistant', timestamp: '2026-01-01T00:00:01.000Z', message: { stop_reason: 'tool_use' } },
+      { type: 'user', timestamp: '2026-01-01T00:00:02.000Z', message: { content: [{ type: 'tool_result' }] } },
+      { type: 'assistant', timestamp: '2026-01-01T00:00:03.000Z', message: { stop_reason: 'end_turn' } }
+    )
+  );
+
+  const session = await parseSessionFile(filePath);
+
+  assert.equal(session?.busy, false);
+});
+
+test('parseSessionFile: metadata lines after the last turn do not resurrect busy state', async () => {
+  const dir = await makeTempDir();
+  const filePath = path.join(dir, 'session-idle-2.jsonl');
+  await fs.writeFile(
+    filePath,
+    jsonl(
+      { type: 'user', timestamp: '2026-01-01T00:00:00.000Z', message: { content: 'hi' } },
+      { type: 'assistant', timestamp: '2026-01-01T00:00:01.000Z', message: { stop_reason: 'end_turn' } },
+      { type: 'last-prompt', lastPrompt: 'hi' },
+      { type: 'ai-title', aiTitle: 'A chat' },
+      { type: 'mode', mode: 'normal' }
+    )
+  );
+
+  const session = await parseSessionFile(filePath);
+
+  assert.equal(session?.busy, false);
+});
+
+test('parseSessionFile: a tool result reopens busy even when it is not a genuine new human turn', async () => {
+  // Documents a known imprecision (see the `busy` doc comment): the CLI
+  // appends tool results as `type: 'user'` lines too, so one arriving after a
+  // completed turn makes the session look busy again even though no new
+  // human turn actually started it. Not fixed — just characterized here so a
+  // future reader recognizes it as accepted behaviour rather than a regression.
+  const dir = await makeTempDir();
+  const filePath = path.join(dir, 'session-idle-3.jsonl');
+  await fs.writeFile(
+    filePath,
+    jsonl(
+      { type: 'user', timestamp: '2026-01-01T00:00:00.000Z', message: { content: 'hi' } },
+      { type: 'assistant', timestamp: '2026-01-01T00:00:01.000Z', message: { stop_reason: 'end_turn' } },
+      {
+        type: 'user',
+        timestamp: '2026-01-01T00:10:00.000Z',
+        message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_1' }] },
+      }
+    )
+  );
+
+  const session = await parseSessionFile(filePath);
+
+  assert.equal(session?.busy, true);
+});
+
+test('parseSessionFile: busySince tracks the timestamp of the line that last changed busy', async () => {
+  const dir = await makeTempDir();
+  const filePath = path.join(dir, 'session-busy-since.jsonl');
+  await fs.writeFile(
+    filePath,
+    jsonl(
+      { type: 'user', timestamp: '2026-01-01T00:00:00.000Z', message: { content: 'hi' } },
+      { type: 'assistant', timestamp: '2026-01-01T00:00:05.000Z', message: { stop_reason: 'tool_use' } }
+    )
+  );
+
+  const session = await parseSessionFile(filePath);
+
+  assert.equal(session?.busySince?.toISOString(), '2026-01-01T00:00:05.000Z');
+});
+
+test('isSessionBusy: false when the session is not busy at all', () => {
+  assert.equal(isSessionBusy({ busy: false, busySince: new Date() }, new Date()), false);
+});
+
+test('isSessionBusy: true when busy and busySince is recent', () => {
+  const now = new Date('2026-01-01T00:01:00.000Z');
+  const busySince = new Date(now.getTime() - 5_000);
+  assert.equal(isSessionBusy({ busy: true, busySince }, now), true);
+});
+
+test('isSessionBusy: false once busySince is older than BUSY_STALE_MS — a stuck tool_use is treated as idle, not busy', () => {
+  const now = new Date('2026-01-01T00:01:00.000Z');
+  const busySince = new Date(now.getTime() - BUSY_STALE_MS - 1);
+  assert.equal(isSessionBusy({ busy: true, busySince }, now), false);
+});
+
+test('isSessionBusy: true (fails open) when busy but there is no busySince to age it by', () => {
+  assert.equal(isSessionBusy({ busy: true, busySince: undefined }, new Date()), true);
 });
 
 test('parseSessionFile: rejects instead of crashing the process when the stream errors mid-read', async () => {

@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { ClaudeSessionItem, listAllSessions } from './claudeSessionService';
+import { ClaudeSessionItem, isSessionBusy, listAllSessions, parseSessionFile } from './claudeSessionService';
 import { listWorktrees, WorktreeInfo } from './gitService';
 import { findActiveTerminal, isActiveTerminalForWorktree } from './terminalRegistry';
+import { watchClaudeProcesses } from './claudeProcessTracking';
 import { WorktreeColor, worktreeColor } from './worktreeAppearance';
 import { WorktreeWatcher } from './worktreeWatcher';
 import { buildProjectLayout, RepoWorktrees } from './projectGrouping';
@@ -49,6 +50,22 @@ export class PreviousSessionsNode {
 
 export type TreeNode = ProjectFolderNode | WorktreeNode | SessionNode | PreviousSessionsNode;
 
+// Prepended to a row's label while Claude is actively working on it. `~spin`
+// is a real codicon modifier VS Code animates wherever codicons render,
+// including TreeItem labels — not just the status bar.
+const BUSY_PREFIX = '$(sync~spin) ';
+
+/**
+ * A session is only shown as "busy" while it also has a live terminal —
+ * `ClaudeSessionItem.busy` alone can't tell a mid-turn session from one whose
+ * CLI process was killed before it could write the closing `end_turn` line —
+ * and while `isSessionBusy` still trusts the transcript's `busy` flag (see its
+ * doc comment for why a stale `busy: true` gets aged out).
+ */
+function withBusyPrefix(label: string, session: ClaudeSessionItem | undefined, hasActiveTerminal: boolean): string {
+  return hasActiveTerminal && session && isSessionBusy(session) ? `${BUSY_PREFIX}${label}` : label;
+}
+
 /**
  * The worktree a command should act on. In the expanded view commands fire on a
  * WorktreeNode; in the simplified view the project node stands in for its main
@@ -75,6 +92,12 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   // show up without a manual refresh.
   private readonly worktreeWatcher = new WorktreeWatcher(() => this.refresh());
   private readonly terminalEventListeners: vscode.Disposable[];
+  private readonly claudeProcessListener: vscode.Disposable;
+  // `isSessionBusy` ages a stuck `busy: true` out over time (see its doc
+  // comment), with nothing on disk changing to trigger a re-render on its own
+  // — so poll for that instead. Cheap: re-renders already-loaded data, no disk
+  // or git access.
+  private readonly staleBusyPoll: ReturnType<typeof setInterval>;
   // Bumped on every refresh() call; a call only commits its results if it's
   // still the most recent one by the time it resolves, so a slow refresh can't
   // clobber a faster, more recent one.
@@ -90,11 +113,15 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       vscode.window.onDidCloseTerminal(() => this.onDidChangeTreeDataEmitter.fire()),
       vscode.window.onDidChangeActiveTerminal(() => this.onDidChangeTreeDataEmitter.fire()),
     ];
+    this.claudeProcessListener = watchClaudeProcesses(() => this.onDidChangeTreeDataEmitter.fire());
+    this.staleBusyPoll = setInterval(() => this.onDidChangeTreeDataEmitter.fire(), 10_000);
   }
 
   dispose(): void {
     this.worktreeWatcher.dispose();
     this.onDidChangeTreeDataEmitter.dispose();
+    this.claudeProcessListener.dispose();
+    clearInterval(this.staleBusyPoll);
     for (const listener of this.terminalEventListeners) {
       listener.dispose();
     }
@@ -105,6 +132,40 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       return;
     }
     this.showHistory = value;
+    this.onDidChangeTreeDataEmitter.fire();
+  }
+
+  /**
+   * Re-parses a single already-known session file and patches it into the
+   * current tree in place — no `git worktree list` calls, unlike `refresh()`.
+   * For a session mid-turn, that gap matters: `refresh()` can take well over
+   * a second across a handful of repos, which is longer than plenty of turns
+   * take from `busy: true` back to `false`, so the busy indicator could
+   * finish its window before a full refresh ever caught up with it. Falls
+   * back to a full `refresh()` if the file isn't part of the current tree yet
+   * (e.g. this is actually its first appearance and the watcher's "change"
+   * event raced its "create" event).
+   */
+  async updateSession(filePath: string): Promise<void> {
+    const updated = await parseSessionFile(filePath);
+    if (!updated) {
+      return;
+    }
+    let found = false;
+    for (const project of this.projects) {
+      for (const worktree of project.worktrees) {
+        const index = worktree.sessions.findIndex((s) => s.filePath === filePath);
+        if (index !== -1) {
+          worktree.sessions[index] = updated;
+          worktree.sessions.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+          found = true;
+        }
+      }
+    }
+    if (!found) {
+      return this.refresh();
+    }
+    this.projects.sort((a, b) => latestActivity(b) - latestActivity(a));
     this.onDidChangeTreeDataEmitter.fire();
   }
 
@@ -270,7 +331,7 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     const isLeaf = managed.length === 0;
 
     const item = new vscode.TreeItem(
-      path.basename(data.rootPath),
+      withBusyPrefix(path.basename(data.rootPath), latest, hasActiveTerminal),
       isLeaf ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Collapsed
     );
     item.description = this.latestDescription(main);
@@ -307,7 +368,7 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     const collapsibleState =
       simplified || !hasSessions ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Expanded;
 
-    const item = new vscode.TreeItem(label, collapsibleState);
+    const item = new vscode.TreeItem(withBusyPrefix(label, worktree.sessions[0], hasActiveTerminal), collapsibleState);
     if (simplified) {
       item.description = this.latestDescription(worktree);
       item.tooltip = worktree.path;
@@ -361,7 +422,10 @@ export class SessionsTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     const isRunning = node.isLatest && findActiveTerminal(node.worktreePath) !== undefined;
     const isFocused = isRunning && isActiveTerminalForWorktree(node.worktreePath);
 
-    const item = new vscode.TreeItem(session.title, vscode.TreeItemCollapsibleState.None);
+    const item = new vscode.TreeItem(
+      withBusyPrefix(session.title, session, isRunning),
+      vscode.TreeItemCollapsibleState.None
+    );
     const time = formatRelativeTime(session.updatedAt);
     if (isFocused) {
       item.description = `${time} — active`;
